@@ -149,14 +149,11 @@ class TestApiCalls:
     @patch("yazio_cli.api.httpx.get")
     def test_search_products(self, mock_get: MagicMock, token_dir: Path, valid_token: dict) -> None:
         api._save_token(valid_token)
-        mock_get.return_value = _mock_response(
-            200,
-            {
-                "products": [{"id": "p1", "name": "Poulet"}],
-            },
-        )
+        mock_get.return_value = _mock_response(200)
+        mock_get.return_value.json.return_value = [{"product_id": "p1", "name": "Poulet"}]
         result = api.search_products("poulet")
-        assert "products" in result
+        assert len(result) == 1
+        assert result[0]["name"] == "Poulet"
 
     @patch("yazio_cli.api.httpx.get")
     def test_weight(self, mock_get: MagicMock, token_dir: Path, valid_token: dict) -> None:

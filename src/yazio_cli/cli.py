@@ -290,8 +290,7 @@ def goals(
 @app.command()
 def search(query: str = typer.Argument(..., help="Food to search for")) -> None:
     """Search the Yazio food database."""
-    data = api.search_products(query)
-    items = data if isinstance(data, list) else data.get("products", data.get("items", []))
+    items = api.search_products(query)
 
     if not items:
         console.print("[dim]No results.[/dim]")
@@ -301,19 +300,20 @@ def search(query: str = typer.Argument(..., help="Food to search for")) -> None:
     table.add_column("ID", style="dim")
     table.add_column("Name")
     table.add_column("Cal/100g", justify="right")
-    table.add_column("P", justify="right")
-    table.add_column("F", justify="right")
-    table.add_column("C", justify="right")
+    table.add_column("P/100g", justify="right")
+    table.add_column("F/100g", justify="right")
+    table.add_column("C/100g", justify="right")
 
     for item in items[:15]:
-        n = item.get("nutrients", item)
+        n = item.get("nutrients", {})
+        # Nutrients are per-gram, multiply by 100 for per-100g display
         table.add_row(
-            item.get("id", "?")[:12],
-            item.get("name", item.get("product_name", "?")),
-            f"{n.get('energy.energy', 0):.0f}",
-            f"{n.get('nutrient.protein', 0):.1f}g",
-            f"{n.get('nutrient.fat', 0):.1f}g",
-            f"{n.get('nutrient.carb', 0):.1f}g",
+            item.get("product_id", "?")[:12],
+            item.get("name", "?"),
+            f"{n.get('energy.energy', 0) * 100:.0f}",
+            f"{n.get('nutrient.protein', 0) * 100:.1f}g",
+            f"{n.get('nutrient.fat', 0) * 100:.1f}g",
+            f"{n.get('nutrient.carb', 0) * 100:.1f}g",
         )
 
     console.print(table)

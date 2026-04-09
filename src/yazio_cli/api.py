@@ -205,8 +205,11 @@ def settings() -> JsonDict:
     return _get("/user/settings")
 
 
-def search_products(query: str) -> JsonDict:
-    return _get(f"/products/search?q={query}")
+def search_products(query: str, country: str = "FR", sex: str = "male") -> list[JsonDict]:
+    result: list[JsonDict] = _get(  # type: ignore[assignment]
+        f"/products/search?query={query}&countries={country}&sex={sex}"
+    )
+    return result
 
 
 def get_product(product_id: str) -> JsonDict:
