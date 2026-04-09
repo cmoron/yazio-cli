@@ -205,9 +205,15 @@ def water(
 
 
 @app.command()
-def weight() -> None:
+def weight(
+    days: int = typer.Option(30, help="Number of days of history to show"),
+) -> None:
     """Show weight history."""
-    data = api.weight()
+    from datetime import timedelta
+
+    end = Date.today()
+    start = end - timedelta(days=days)
+    data = api.weight(start.isoformat(), end.isoformat())
     entries = (
         data
         if isinstance(data, list)
@@ -220,10 +226,9 @@ def weight() -> None:
 
     for entry in entries[-10:]:  # Last 10
         if isinstance(entry, dict):
-            table.add_row(
-                entry.get("date", "?"),
-                f"{entry.get('value', entry.get('weight', '?'))} kg",
-            )
+            raw_date = entry.get("date", "?")
+            w = entry.get("value", entry.get("weight", 0))
+            table.add_row(raw_date[:10], f"{w:.1f} kg")
 
     console.print(table)
 

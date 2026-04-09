@@ -197,8 +197,8 @@ def exercises(date: str) -> dict:
     return _get(f"/user/exercises?date={date}")
 
 
-def weight() -> dict:
-    return _get("/user/bodyvalues/weight")
+def weight(start: str, end: str) -> dict:
+    return _get(f"/user/bodyvalues/weight?start={start}&end={end}")
 
 
 def settings() -> dict:
