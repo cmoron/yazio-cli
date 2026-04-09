@@ -148,6 +148,48 @@ def summary(
     console.print(meal_table)
 
 
+def _resolve_item(item: dict) -> dict:
+    """Resolve a consumed item to name + nutrients (per-amount, not per-gram)."""
+    if item.get("type") == "simple_product":
+        n = item.get("nutrients", {})
+        return {
+            "name": item.get("name", "?"),
+            "daytime": item.get("daytime", "?"),
+            "amount": item.get("amount", 0),
+            "cal": n.get("energy.energy", 0),
+            "protein": n.get("nutrient.protein", 0),
+            "fat": n.get("nutrient.fat", 0),
+            "carb": n.get("nutrient.carb", 0),
+        }
+
+    # Regular product — fetch details, nutrients are per-gram
+    amount = item.get("amount", 0)
+    product_id = item.get("product_id", "")
+    try:
+        product = api.get_product(product_id)
+    except api.ApiError:
+        return {
+            "name": f"[unknown: {product_id[:8]}]",
+            "daytime": item.get("daytime", "?"),
+            "amount": amount,
+            "cal": 0,
+            "protein": 0,
+            "fat": 0,
+            "carb": 0,
+        }
+
+    n = product.get("nutrients", {})
+    return {
+        "name": product.get("name", "?"),
+        "daytime": item.get("daytime", "?"),
+        "amount": amount,
+        "cal": n.get("energy.energy", 0) * amount,
+        "protein": n.get("nutrient.protein", 0) * amount,
+        "fat": n.get("nutrient.fat", 0) * amount,
+        "carb": n.get("nutrient.carb", 0) * amount,
+    }
+
+
 @app.command()
 def meals(
     date: str = typer.Argument(
@@ -158,14 +200,19 @@ def meals(
     date = date or _today()
     data = api.consumed_items(date)
 
-    items = (
+    raw_items = (
         data.get("products", [])
         + data.get("recipe_portions", [])
         + data.get("simple_products", [])
     )
-    if not items:
+    if not raw_items:
         console.print(f"[dim]No items logged for {date}.[/dim]")
         return
+
+    items = [_resolve_item(i) for i in raw_items]
+    # Sort by meal order
+    meal_order = {"breakfast": 0, "lunch": 1, "dinner": 2, "snack": 3}
+    items.sort(key=lambda x: meal_order.get(x["daytime"], 9))
 
     table = Table(title=f"Meals for {date}")
     table.add_column("Meal", style="bold")
@@ -178,13 +225,13 @@ def meals(
 
     for item in items:
         table.add_row(
-            item.get("daytime", "?"),
-            item.get("product_name", item.get("name", "?")),
-            f"{item.get('amount', 0):.0f}g",
-            f"{item.get('energy.energy', item.get('energy', 0)):.0f}",
-            f"{item.get('nutrient.protein', 0):.1f}g",
-            f"{item.get('nutrient.fat', 0):.1f}g",
-            f"{item.get('nutrient.carb', 0):.1f}g",
+            item["daytime"],
+            item["name"],
+            f"{item['amount']:.0f}g",
+            f"{item['cal']:.0f}",
+            f"{item['protein']:.1f}g",
+            f"{item['fat']:.1f}g",
+            f"{item['carb']:.1f}g",
         )
 
     console.print(table)
