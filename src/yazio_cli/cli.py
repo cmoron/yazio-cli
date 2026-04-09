@@ -25,10 +25,25 @@ def login(
         ..., prompt=True, hide_input=True, help="Yazio password"
     ),
 ) -> None:
-    """Authenticate with Yazio and cache the token."""
+    """Authenticate with Yazio email/password and cache the token."""
     try:
         api.login(username, password)
         console.print("[green]Logged in successfully.[/green]")
+    except api.AuthError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command("web-login")
+def web_login(
+    session_cookie: str = typer.Option(
+        ..., prompt="yz_session cookie", help="yz_session cookie from yazio.com"
+    ),
+) -> None:
+    """Login using yz_session cookie from yazio.com (for Apple/Google sign-in users)."""
+    try:
+        api.web_login(session_cookie)
+        console.print("[green]Token extracted and saved.[/green]")
     except api.AuthError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)

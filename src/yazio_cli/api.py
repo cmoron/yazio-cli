@@ -6,9 +6,11 @@ import json
 import time
 from pathlib import Path
 
+
 import httpx
 
 BASE_URL = "https://yzapi.yazio.com/v15"
+WEB_URL = "https://www.yazio.com"
 CLIENT_ID = "1_4hiybetvfksgw40o0sog4s884kwc840wwso8go4k8c04goo4c"
 CLIENT_SECRET = "6rok2m65xuskgkgogw40wkkk8sw0osg84s8cggsc4woos4s8o"
 
@@ -80,11 +82,57 @@ def _refresh(token: dict) -> dict:
     return new_token
 
 
+def web_login(session_cookie: str) -> dict:
+    """Extract API tokens from the Yazio web session cookie."""
+    import re
+
+    client = httpx.Client(
+        cookies={"yz_session": session_cookie},
+        headers={"User-Agent": "Mozilla/5.0"},
+        follow_redirects=True,
+    )
+    resp = client.get(f"{WEB_URL}/fr/app/account")
+    if resp.status_code != 200:
+        raise AuthError(f"Web login failed ({resp.status_code})")
+
+    text = resp.text
+    idx = text.find("accessToken")
+    if idx < 0:
+        raise AuthError(
+            "No accessToken found in web page — session cookie may be expired"
+        )
+
+    chunk = text[idx : idx + 600]
+    tokens = re.findall(r'"([a-f0-9]{40,})"', chunk)
+    if len(tokens) < 2:
+        raise AuthError(
+            f"Could not extract tokens from web page (found {len(tokens)} candidates)"
+        )
+
+    token = {
+        "access_token": tokens[0],
+        "refresh_token": tokens[1],
+        "token_type": "bearer",
+        "expires_at": time.time() + 3600,
+    }
+
+    # Verify the token works
+    test = httpx.get(
+        f"{BASE_URL}/user/goals/unmodified?date=2026-01-01",
+        headers={"Authorization": f"Bearer {token['access_token']}"},
+    )
+    if test.status_code != 200:
+        raise AuthError(f"Extracted token is invalid (API returned {test.status_code})")
+
+    _save_token(token)
+    return token
+
+
 def get_token() -> dict:
     """Load a valid token, refreshing if needed."""
     token = _load_token()
     if token is None:
-        raise AuthError("Not logged in. Run: yazio login")
+        raise AuthError("Not logged in. Run: yazio login  OR  yazio web-login")
     if _token_expired(token):
         token = _refresh(token)
     return token
