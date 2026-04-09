@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-
+from typing import Any
 
 import httpx
+
+JsonDict = dict[str, Any]
 
 BASE_URL = "https://yzapi.yazio.com/v15"
 WEB_URL = "https://www.yazio.com"
@@ -28,22 +30,24 @@ class ApiError(Exception):
         super().__init__(f"HTTP {status}: {body}")
 
 
-def _save_token(token: dict) -> None:
+def _save_token(token: JsonDict) -> None:
     TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
     TOKEN_PATH.write_text(json.dumps(token, indent=2))
 
 
-def _load_token() -> dict | None:
+def _load_token() -> JsonDict | None:
     if not TOKEN_PATH.exists():
         return None
-    return json.loads(TOKEN_PATH.read_text())
+    result: JsonDict = json.loads(TOKEN_PATH.read_text())
+    return result
 
 
-def _token_expired(token: dict) -> bool:
-    return time.time() >= token.get("expires_at", 0)
+def _token_expired(token: JsonDict) -> bool:
+    expires_at: float = token.get("expires_at", 0)
+    return time.time() >= expires_at
 
 
-def login(username: str, password: str) -> dict:
+def login(username: str, password: str) -> JsonDict:
     """Authenticate with Yazio and cache the token."""
     resp = httpx.post(
         f"{BASE_URL}/oauth/token",
@@ -57,13 +61,13 @@ def login(username: str, password: str) -> dict:
     )
     if resp.status_code != 200:
         raise AuthError(f"Login failed ({resp.status_code}): {resp.text}")
-    token = resp.json()
+    token: JsonDict = resp.json()
     token["expires_at"] = time.time() + token.get("expires_in", 3600)
     _save_token(token)
     return token
 
 
-def _refresh(token: dict) -> dict:
+def _refresh(token: JsonDict) -> JsonDict:
     """Refresh an expired token."""
     resp = httpx.post(
         f"{BASE_URL}/oauth/token",
@@ -76,13 +80,13 @@ def _refresh(token: dict) -> dict:
     )
     if resp.status_code != 200:
         raise AuthError(f"Token refresh failed ({resp.status_code}): {resp.text}")
-    new_token = resp.json()
+    new_token: JsonDict = resp.json()
     new_token["expires_at"] = time.time() + new_token.get("expires_in", 3600)
     _save_token(new_token)
     return new_token
 
 
-def web_login(session_cookie: str) -> dict:
+def web_login(session_cookie: str) -> JsonDict:
     """Extract API tokens from the Yazio web session cookie."""
     import re
 
@@ -98,16 +102,12 @@ def web_login(session_cookie: str) -> dict:
     text = resp.text
     idx = text.find("accessToken")
     if idx < 0:
-        raise AuthError(
-            "No accessToken found in web page — session cookie may be expired"
-        )
+        raise AuthError("No accessToken found in web page — session cookie may be expired")
 
     chunk = text[idx : idx + 600]
     tokens = re.findall(r'"([a-f0-9]{40,})"', chunk)
     if len(tokens) < 2:
-        raise AuthError(
-            f"Could not extract tokens from web page (found {len(tokens)} candidates)"
-        )
+        raise AuthError(f"Could not extract tokens from web page (found {len(tokens)} candidates)")
 
     token = {
         "access_token": tokens[0],
@@ -128,7 +128,7 @@ def web_login(session_cookie: str) -> dict:
     return token
 
 
-def get_token() -> dict:
+def get_token() -> JsonDict:
     """Load a valid token, refreshing if needed."""
     token = _load_token()
     if token is None:
@@ -138,11 +138,11 @@ def get_token() -> dict:
     return token
 
 
-def _headers(token: dict) -> dict[str, str]:
+def _headers(token: JsonDict) -> dict[str, str]:
     return {"Authorization": f"Bearer {token['access_token']}"}
 
 
-def _get(path: str, token: dict | None = None) -> dict:
+def _get(path: str, token: JsonDict | None = None) -> JsonDict:
     if token is None:
         token = get_token()
     resp = httpx.get(f"{BASE_URL}{path}", headers=_headers(token))
@@ -150,10 +150,11 @@ def _get(path: str, token: dict | None = None) -> dict:
         return {}
     if resp.status_code >= 400:
         raise ApiError(resp.status_code, resp.text)
-    return resp.json()
+    result: JsonDict = resp.json()
+    return result
 
 
-def _post(path: str, body: dict, token: dict | None = None) -> dict:
+def _post(path: str, body: JsonDict, token: JsonDict | None = None) -> JsonDict:
     if token is None:
         token = get_token()
     resp = httpx.post(f"{BASE_URL}{path}", json=body, headers=_headers(token))
@@ -161,15 +162,14 @@ def _post(path: str, body: dict, token: dict | None = None) -> dict:
         return {}
     if resp.status_code >= 400:
         raise ApiError(resp.status_code, resp.text)
-    return resp.json()
+    result: JsonDict = resp.json()
+    return result
 
 
-def _delete(path: str, body: list | dict, token: dict | None = None) -> None:
+def _delete(path: str, body: list[Any] | JsonDict, token: JsonDict | None = None) -> None:
     if token is None:
         token = get_token()
-    resp = httpx.request(
-        "DELETE", f"{BASE_URL}{path}", json=body, headers=_headers(token)
-    )
+    resp = httpx.request("DELETE", f"{BASE_URL}{path}", json=body, headers=_headers(token))
     if resp.status_code >= 400:
         raise ApiError(resp.status_code, resp.text)
 
@@ -177,39 +177,39 @@ def _delete(path: str, body: list | dict, token: dict | None = None) -> None:
 # --- Public API ---
 
 
-def daily_summary(date: str) -> dict:
+def daily_summary(date: str) -> JsonDict:
     return _get(f"/user/widgets/daily-summary?date={date}")
 
 
-def consumed_items(date: str) -> dict:
+def consumed_items(date: str) -> JsonDict:
     return _get(f"/user/consumed-items?date={date}")
 
 
-def water_intake(date: str) -> dict:
+def water_intake(date: str) -> JsonDict:
     return _get(f"/user/water-intake?date={date}")
 
 
-def goals(date: str) -> dict:
+def goals(date: str) -> JsonDict:
     return _get(f"/user/goals/unmodified?date={date}")
 
 
-def exercises(date: str) -> dict:
+def exercises(date: str) -> JsonDict:
     return _get(f"/user/exercises?date={date}")
 
 
-def weight(start: str, end: str) -> dict:
+def weight(start: str, end: str) -> JsonDict:
     return _get(f"/user/bodyvalues/weight?start={start}&end={end}")
 
 
-def settings() -> dict:
+def settings() -> JsonDict:
     return _get("/user/settings")
 
 
-def search_products(query: str) -> dict:
+def search_products(query: str) -> JsonDict:
     return _get(f"/products/search?q={query}")
 
 
-def get_product(product_id: str) -> dict:
+def get_product(product_id: str) -> JsonDict:
     return _get(f"/products/{product_id}")
 
 
@@ -219,8 +219,8 @@ def add_consumed_item(
     date: str,
     meal: str,
     serving_id: str | None = None,
-) -> dict:
-    entry = {
+) -> JsonDict:
+    entry: JsonDict = {
         "product_id": product_id,
         "date": date,
         "daytime": meal,

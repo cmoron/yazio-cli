@@ -21,9 +21,7 @@ def _today() -> str:
 @app.command()
 def login(
     username: str = typer.Option(..., prompt=True, help="Yazio email"),
-    password: str = typer.Option(
-        ..., prompt=True, hide_input=True, help="Yazio password"
-    ),
+    password: str = typer.Option(..., prompt=True, hide_input=True, help="Yazio password"),
 ) -> None:
     """Authenticate with Yazio email/password and cache the token."""
     try:
@@ -31,7 +29,7 @@ def login(
         console.print("[green]Logged in successfully.[/green]")
     except api.AuthError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("web-login")
@@ -46,14 +44,12 @@ def web_login(
         console.print("[green]Token extracted and saved.[/green]")
     except api.AuthError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
 def summary(
-    date: str = typer.Argument(
-        default=None, help="Date (YYYY-MM-DD), defaults to today"
-    ),
+    date: str = typer.Argument(default=None, help="Date (YYYY-MM-DD), defaults to today"),
 ) -> None:
     """Show daily nutrition summary."""
     date = date or _today()
@@ -63,18 +59,10 @@ def summary(
     meals = data.get("meals", {})
 
     # Totals across meals
-    total_cal = sum(
-        m.get("nutrients", {}).get("energy.energy", 0) for m in meals.values()
-    )
-    total_protein = sum(
-        m.get("nutrients", {}).get("nutrient.protein", 0) for m in meals.values()
-    )
-    total_fat = sum(
-        m.get("nutrients", {}).get("nutrient.fat", 0) for m in meals.values()
-    )
-    total_carbs = sum(
-        m.get("nutrients", {}).get("nutrient.carb", 0) for m in meals.values()
-    )
+    total_cal = sum(m.get("nutrients", {}).get("energy.energy", 0) for m in meals.values())
+    total_protein = sum(m.get("nutrients", {}).get("nutrient.protein", 0) for m in meals.values())
+    total_fat = sum(m.get("nutrients", {}).get("nutrient.fat", 0) for m in meals.values())
+    total_carbs = sum(m.get("nutrients", {}).get("nutrient.carb", 0) for m in meals.values())
 
     goal_cal = goals.get("energy.energy", 0)
 
@@ -148,7 +136,7 @@ def summary(
     console.print(meal_table)
 
 
-def _resolve_item(item: dict) -> dict:
+def _resolve_item(item: api.JsonDict) -> api.JsonDict:
     """Resolve a consumed item to name + nutrients (per-amount, not per-gram)."""
     if item.get("type") == "simple_product":
         n = item.get("nutrients", {})
@@ -192,18 +180,14 @@ def _resolve_item(item: dict) -> dict:
 
 @app.command()
 def meals(
-    date: str = typer.Argument(
-        default=None, help="Date (YYYY-MM-DD), defaults to today"
-    ),
+    date: str = typer.Argument(default=None, help="Date (YYYY-MM-DD), defaults to today"),
 ) -> None:
     """Show consumed items for a day."""
     date = date or _today()
     data = api.consumed_items(date)
 
     raw_items = (
-        data.get("products", [])
-        + data.get("recipe_portions", [])
-        + data.get("simple_products", [])
+        data.get("products", []) + data.get("recipe_portions", []) + data.get("simple_products", [])
     )
     if not raw_items:
         console.print(f"[dim]No items logged for {date}.[/dim]")
@@ -239,16 +223,12 @@ def meals(
 
 @app.command()
 def water(
-    date: str = typer.Argument(
-        default=None, help="Date (YYYY-MM-DD), defaults to today"
-    ),
+    date: str = typer.Argument(default=None, help="Date (YYYY-MM-DD), defaults to today"),
 ) -> None:
     """Show water intake for a day."""
     date = date or _today()
     data = api.water_intake(date)
-    console.print(
-        f"Water intake for {date}: [bold]{data.get('water_intake', 0)} ml[/bold]"
-    )
+    console.print(f"Water intake for {date}: [bold]{data.get('water_intake', 0)} ml[/bold]")
 
 
 @app.command()
@@ -261,11 +241,8 @@ def weight(
     end = Date.today()
     start = end - timedelta(days=days)
     data = api.weight(start.isoformat(), end.isoformat())
-    entries = (
-        data
-        if isinstance(data, list)
-        else data.get("items", data.get("values", [data]))
-    )
+    raw = data.get("items") or data.get("values") or [data]
+    entries: list[api.JsonDict] = raw if isinstance(raw, list) else [raw]
 
     table = Table(title="Weight History")
     table.add_column("Date", style="bold")
@@ -282,9 +259,7 @@ def weight(
 
 @app.command()
 def goals(
-    date: str = typer.Argument(
-        default=None, help="Date (YYYY-MM-DD), defaults to today"
-    ),
+    date: str = typer.Argument(default=None, help="Date (YYYY-MM-DD), defaults to today"),
 ) -> None:
     """Show nutrition goals."""
     date = date or _today()
@@ -316,9 +291,7 @@ def goals(
 def search(query: str = typer.Argument(..., help="Food to search for")) -> None:
     """Search the Yazio food database."""
     data = api.search_products(query)
-    items = (
-        data if isinstance(data, list) else data.get("products", data.get("items", []))
-    )
+    items = data if isinstance(data, list) else data.get("products", data.get("items", []))
 
     if not items:
         console.print("[dim]No results.[/dim]")
@@ -357,14 +330,10 @@ def add(
     """Add a food item to your diary."""
     date = date or _today()
     if meal not in ("breakfast", "lunch", "dinner", "snack"):
-        console.print(
-            f"[red]Invalid meal: {meal}. Use breakfast, lunch, dinner, or snack.[/red]"
-        )
+        console.print(f"[red]Invalid meal: {meal}. Use breakfast, lunch, dinner, or snack.[/red]")
         raise typer.Exit(1)
     api.add_consumed_item(product_id, amount, date, meal, serving_id)
-    console.print(
-        f"[green]Added {amount}g of {product_id} to {meal} on {date}.[/green]"
-    )
+    console.print(f"[green]Added {amount}g of {product_id} to {meal} on {date}.[/green]")
 
 
 @app.command()
@@ -378,9 +347,7 @@ def remove(
 
 @app.command()
 def exercises(
-    date: str = typer.Argument(
-        default=None, help="Date (YYYY-MM-DD), defaults to today"
-    ),
+    date: str = typer.Argument(default=None, help="Date (YYYY-MM-DD), defaults to today"),
 ) -> None:
     """Show exercises for a day."""
     date = date or _today()
