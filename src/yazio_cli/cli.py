@@ -241,8 +241,11 @@ def weight(
     end = Date.today()
     start = end - timedelta(days=days)
     data = api.weight(start.isoformat(), end.isoformat())
-    raw = data.get("items") or data.get("values") or [data]
-    entries: list[api.JsonDict] = raw if isinstance(raw, list) else [raw]
+    if isinstance(data, list):
+        entries: list[api.JsonDict] = data
+    else:
+        raw = data.get("items") or data.get("values") or [data]
+        entries = raw if isinstance(raw, list) else [raw]
 
     table = Table(title="Weight History")
     table.add_column("Date", style="bold")
