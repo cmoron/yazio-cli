@@ -4,6 +4,26 @@ CLI pour le suivi nutritionnel Yazio, basé sur l'API non officielle reverse-eng
 
 ## Installation
 
+### Binaire autonome (recommandé)
+
+Linux / macOS (x86_64 et arm64) :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cmoron/yazio-cli/main/install.sh | sh
+```
+
+Variables optionnelles : `VERSION=v0.1.0` pour une version précise, `INSTALL_DIR=$HOME/.local/bin` pour un autre dossier.
+
+### Via PyPI
+
+```bash
+uv tool install yazio-cli
+# ou
+pipx install yazio-cli
+```
+
+### Depuis les sources
+
 ```bash
 cd ~/src/yazio-cli
 uv sync
