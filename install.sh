@@ -20,6 +20,15 @@ case "$ARCH" in
   *)               echo "Error: unsupported architecture '$ARCH'"; exit 1 ;;
 esac
 
+# macOS Intel is not built (GitHub retired free Intel macOS runners).
+# Fall back to PyPI for Intel Macs.
+if [ "$os" = "macos" ] && [ "$arch" = "x86_64" ]; then
+  echo "Error: no prebuilt binary for Intel macOS."
+  echo "Install via PyPI instead:"
+  echo "  uv tool install yazio-cli   # or: pipx install yazio-cli"
+  exit 1
+fi
+
 TARGET="${os}-${arch}"
 
 # --- Resolve version ---
